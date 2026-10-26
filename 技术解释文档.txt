@@ -1,0 +1,177 @@
+1.古籍OCR通用原理
+对于一张图片，大多数人都知道有个分辨率的属性，例如1920x1080，如果将这两个数字相乘就得到了像素的概念，这和相机所宣称的像素是一个意思。我们还知道，光是由红绿蓝(RGB)三原色组成的，也就是每个像素点都有一个RGB值，分别表示这个像素点的红绿蓝三种颜色的强度。对于一张图片来说，我们可以把它看成是一个三维矩阵，第一维和第二维分别对应图片的宽度和高度，第三维则对应RGB三个颜色通道。对于一张1920x1080的图片来说，这个矩阵的大小就是1920x1080x3。这个三维矩阵就是计算机所见到的图片形式，因此我们要做的就是找到一个方法能从这个三维矩阵中提取出我们想要的文本信息。这个方法就是OCR系统的核心。
+对于人眼而言，这似乎不成问题，我们一看就知道了。可是要问你怎么看的，你就说不清了。对于计算机视觉的研究者而言，既然问题太难了，那就拆分成多个子任务。对于OCR这个任务而言，我们可以拆分成这几个子过程：
+检测文本区域→检测文本行→检测单个字符→字符识别→字符拼接
+这里所谓检测，就是从一张图片里获得目标的位置信息，例如目标框的四个角坐标;所谓字符识别，就是找到在候选项(比如说汉字的字库)里哪些(个)字符和这个图片区域最相似:所谓字符拼接就是将这些得出的字符以阅读顺序拼接起来。值得注意的是这里虽然有五个步骤，但并非每一个都必须实现，可以合并或取消，这取决于模型的设计和数据集的标注，我们甚至可以做到给定一张古籍页面，直接输出最后的文本内容。我们将这样多步骤的流程称作 Pipeline Model，而一步到位的称作End to End Model。
+2.本次实验中遇到的技术问题
+2.1 底层架构
+为控制复杂度和内存占用，使用Python＋Streamlit本地网页界面。架构图如下：
+GujiOCR
+├── app.py                              ###程序页面
+├── ocr_engine.py                   ###OCR识别模块
+├── local_recognizer.py           ###本地切分模块
+├── check_install.py                 ###环境配置检查
+├── requirements-lock-py311.txt   ###虚拟环境配置要求文件
+├── install.bat                          ###按照命令
+├── start.bat                            ###启动命令
+├── README.txt                      ###操作指南  
+├── models/                           ###识别引擎
+│   ├── chinese_cht_dict.txt     ###词典
+│   └── rec/                            ###模型文件
+│       ├── inference.pdmodel
+│       ├── inference.pdiparams
+│       └── inference.pdiparams.info
+├── wheels/                           ###所有Python依赖的离线安装包
+└── data/                              ###程序自动创建，文件数据储存用
+
+2.2 下载缺失
+报错：
+【Errno 2】 No such file or directory: 'app. py' Source code syntax check failed.
+app.py文件缺失。以此类推可以根据底层架构检查是什么文件缺失了，来找我或从压缩包中补上即可
+
+2.3 Streamlit app 广告，要求你填邮箱推送
+不用管，离线的他发不出来，随便填个邮箱地址即可，然后按回车即可。仅出现于第一次使用时
+
+2.4 浏览器显示白屏
+浏览器采用过老的IE架构导致，无法执行现代前端JavaScript的情况。请保持黑色命令行窗口打开，关闭当前浏览器E窗口。使用Microsoft Edge或Google Chrome将原先的http://127.0.0.1:8501输入地址栏，按回车即可
+
+3.自定义配置可能会遇到的问题
+
+3.1 当前项目目录正确，但Python为正确安装或版本不合适
+报错：
+ERROR:No matching distribution found for paddlepaddle
+ERROR:Could not find a version that satisfies the requirement paddlepaddle (from versions: none)
+解决：检查安装是否正确、重新安装；若版本不正确如下了其他版本的Python，不必删除再添加一个版本即可，运行时会自动匹配）
+
+3.2 创建虚拟环境
+虚拟环境启动时先关闭其他可能正在安装Python依赖的终端和开发工具，然后重新打开PowerShell执行。否则可能导致环境互相占用
+当然，如果希望避免误删文件，也避免原目录仍被占用，亦可直接使用一个新的环境目录，多一个文件夹而已，虚拟环境之间没有任何关系，也不会与本机冲突
+检查新环境中的Python和pip时，
+Powershell分别执行：（.\.venv311_clean替换为您的虚拟环境路径）
+.\.venv311_clean\Scripts\python.exe --version
+.\.venv311_clean\Scripts\python.exe -m pip --version
+新环境正常后，运行：
+.\.venv311_clean\Scripts\python.exe -m pip install --dry-run --only-binary=:all: "paddlepaddle==2.6.2" "numpy==1.26.4"
+如果在新环境创建或安装时仍出现WinError 32，先重启电脑，再只打开一个PowerShell重试。这个错误属于文件占用问题，通常不需要改用管理员权限，更不建议为此关闭安全软件。
+
+3.3 命令重复粘贴导致的PowerShell语法错误
+报错：引用运算符后面缺少属性名称，
+CategoryInfo：ParserError: (:) [],: ParentContainsErrorRecordException
+FullyQualifiedErrorId：MissingPropertyName
+
+3.4 输出张量的方式不正确
+RuntimeError: (PreconditionNotMet)Tensor holdsmemory. no Call Tensor::mutable_data firstly.
+需要修改 local_recognizer.py中的检查方法
+
+3.5 模型及参数检查（由AI提供）
+准备三类测试图片：
+
+一张清晰的现代繁体印刷体图片；
+一张清晰的古籍印刷体图片；
+当前截图中的复杂页面。
+
+分别进行识别。如果模型在现代繁体印刷体上识别正常，在古籍页面上识别明显变差，说明模型本身没有损坏，而是存在领域差异。如果第一类图片也识别很差，则需要检查模型与字典是否匹配，或者识别输入预处理是否错误。
+
+不建议通过修改字典来改善结果。你提供的chinese_cht_dict.txt必须保持原始字符顺序，不能为了减少“□”而随意删除、排序或添加字符。
+
+第二步：检查红框是否准确
+
+执行：
+
+.\.venv311_clean\Scripts\python.exe check_install.py --page test_page.png
+
+然后打开：
+
+debug_output/boxes.png
+
+重点观察：
+
+红框是否覆盖正文，而不是印章；
+是否按照从右向左的栏顺序编号；
+每个红框是否大致覆盖一个字；
+是否有大量红框落在污渍、批注或页面边缘；
+是否出现一个红框覆盖多个字的情况。
+
+如果红框错误，应先改进检测和版面分析。不要先根据错误OCR文本判断模型质量。
+
+第三步：对图像进行预处理
+
+对于当前页面，建议加入以下预处理步骤：
+
+将RGB图像转换为灰度图；
+使用背景估计消除纸张泛黄；
+使用CLAHE增强局部对比度；
+适度去噪；
+使用自适应阈值或Sauvola阈值；
+对页面进行倾斜校正；
+单独处理红色和蓝色印章；
+对正文区域进行裁切，排除页面边缘和批注区域。
+
+其中，不能简单地对整页使用Otsu二值化。截图中纸张背景不均匀，Otsu阈值很可能把污渍、阴影和印章都保留下来，或者把浅色正文过滤掉。
+
+可以先在ocr_engine.py中增加一个简单的灰度增强函数：
+
+def preprocess_image(rgb):
+    """
+    对泛黄、低对比度页面进行基础增强。
+    返回适合后续版面分析的灰度图。
+    """
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+
+    # 局部对比度增强
+    clahe = cv2.createCLAHE(
+        clipLimit=2.0,
+        tileGridSize=(8, 8),
+    )
+    enhanced = clahe.apply(gray)
+
+    # 轻度去噪，避免破坏细小笔画
+    enhanced = cv2.fastNlMeansDenoising(
+        enhanced,
+        None,
+        h=5,
+        templateWindowSize=7,
+        searchWindowSize=21,
+    )
+
+    return enhanced
+
+然后在recognize()中将：
+
+gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+
+替换为：
+
+gray = preprocess_image(rgb)
+
+但需要注意，这只是基础改善。对于截图中的彩色印章和严重不均匀背景，还需要更专门的颜色掩膜和背景校正。过度增强可能把印章和污渍变成更强的“伪文字”，所以应通过boxes.png反复检查。
+
+独立测试结果	优先检查	应修改的部分
+横排词句识别正常，网页中错误	竖栏检测、单字切分、阅读方向	ocr_engine.py
+横排词句也错误，但模型正常输出	配套字典、模型配置、输入图像	local_recognizer.py及模型文件
+输出空字符串、低置信度	图像内容、方向、预处理、模型配置	先检查test_line_input.png
+输出类别数检查失败	字典版本、空格配置、模型是否配套	模型与字典配置，不要随意改字符表
+
+3.6 分发包的制作
+直接制作单文件EXE容易遇到动态库、模型路径和网页资源缺失问题。目录式分发更容易验证、维护和分享，也能保持完全本地运行。步骤如下：
+1.锁定当前环境并下载离线依赖
+.\.venv311_clean\Scripts\python.exe -m pip check
+2.确认没有依赖冲突，再保存当前实际安装的全部版本
+.\.venv311_clean\Scripts\python.exe -m pip freeze | Out-File -Encoding utf8 requirements-lock-py311.txt
+然后下载对应的二进制安装包：
+.\.venv311_clean\Scripts\python.exe -m pip download --only-binary=:all: -r requirements-lock-py311.txt -d wheels
+这里的wheels不是模型目录，而是Python依赖的离线安装包集合，体积可能较大。
+如果报错：
+No matching distribution found
+这表示某个指定版本缺少匹配的二进制包，需要根据具体包名调整版本或预先构建wheel。还应检查锁定文件中是否有file:///...等本机路径依赖，它们不能直接作为通用安装来源
+3.添加首次安装脚本 install.bat，注意应保留适用的许可证信息
+4.添加日常启动脚本 start.bat
+5.在新电脑中运行
+
+3.7 人工校对的引入
+当前app.py调用get_ocr()时未赋予了它def，因此OCR初始化失败会阻止用户阅读图片和录入人工释文。若不希望如此，可以在init_db()实际调用之前、其他函数定义所在区域增加：
+@st.cache_resource
+def get_ocr():
+    # 延迟导入：只有执行OCR时才加载模型相关模块。
+    from ocr_engine import VerticalOCR
+    return VerticalOCR()
